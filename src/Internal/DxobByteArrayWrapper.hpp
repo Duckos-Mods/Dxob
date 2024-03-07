@@ -21,12 +21,16 @@ namespace Dxob
 
         u8 constexpr GetBytesForBitCount(u64 bitCount)
         {
-            u64 byteCount = bitCount / 8;
-            while (byteCount % 8 != 0)
+            u64 remainder = bitCount % 8;
+            if (remainder != 0)
             {
-                bitCount++;
-                byteCount = bitCount / 8;
+                while (remainder != 0)
+                {
+                    bitCount++;
+                    remainder = bitCount % 8;
+                }
             }
+            u64 byteCount = bitCount / 8;
             return byteCount;
 
         }
@@ -137,9 +141,9 @@ namespace Dxob
             valueType value;
 
             valueType tempUnmasked = 0;
-            u64 cpyCount = (endByte - startByte);
-            if (cpyCount == 0)
-				cpyCount = 1;
+            u64 cpyCount = endByte - startByte;
+            if (cpyCount < Intr::GetBytesForBitCount(bitsPerIndex))
+                cpyCount = Intr::GetBytesForBitCount(bitsPerIndex);
             else if (endBit != 0)
                 cpyCount++;
             memcpy(reinterpret_cast<void*>(&tempUnmasked), m_data + startByte, cpyCount);
@@ -157,11 +161,11 @@ namespace Dxob
 			u64 startBit = index * bitsPerIndex % 8; // Get the bit that the index starts at
             u64 endByte = floor((index + 1) * bitsPerIndex / 8); // Get the byte that the index ends in
             u64 endBit = (index + 1) * bitsPerIndex % 8; // Get the bit that the index ends at
-            u64 cpyCount = (endByte - startByte);
-            if (cpyCount == 0)
-                cpyCount = 1;
+            u64 cpyCount = endByte - startByte;
+            if (cpyCount < Intr::GetBytesForBitCount(bitsPerIndex))
+                cpyCount = Intr::GetBytesForBitCount(bitsPerIndex);
             else if (endBit != 0)
-                cpyCount++;
+				cpyCount++;
             valueType orig = NoGuardRead(index, true); // Get the value at the index
             valueType maskClone = m_selectBitmask;
             valueType valClamped = val & maskClone; // This should just take N bits from the value

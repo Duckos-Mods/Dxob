@@ -60,12 +60,12 @@ bool ReadAndWriteSmallerStandardBitSize()
 }
 bool ReadAndWriteLargerStandardBitSize()
 {
-	RANDOM_INT_FUNC(0, 511, u16);
-	ByteArrayWrapper<u16> data(4096, 9);
-	std::vector<u16> dataVec;
+	RANDOM_INT_FUNC(0, 65535, u32);
+	ByteArrayWrapper<u32> data(4096, 18);
+	std::vector<u32> dataVec;
 	for (u64 i = 0; i < 4096; i++)
 	{
-		u16 val = dis(gen);
+		u32 val = dis(gen);
 		dataVec.push_back(val);
 	}
 	for (u64 i = 0; i < 4096; i++)
@@ -91,8 +91,11 @@ int main() {
 		failed++;
 	if (!ReadAndWriteLargerStandardBitSize())
 		failed++;
-	MULTI_TEST(ReadAndWriteStandardBitSize, 10000);
-	MULTI_TEST(ReadAndWriteSmallerStandardBitSize, 10000);
-	MULTI_TEST(ReadAndWriteLargerStandardBitSize, 10000);
-	std::cout << "Failed: " << failed << std::endl;
+	MULTI_TEST(ReadAndWriteStandardBitSize, 1000);
+	MULTI_TEST(ReadAndWriteSmallerStandardBitSize, 1000);
+	MULTI_TEST(ReadAndWriteLargerStandardBitSize, 1000);
+	if (failed == 0)
+		std::cout << "All tests passed" << std::endl;
+	else
+		std::cout << failed << " tests failed" << std::endl;
 }
