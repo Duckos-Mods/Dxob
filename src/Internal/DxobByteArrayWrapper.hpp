@@ -6,6 +6,9 @@
 #include <span>
 #include <algorithm>
 
+// Doing (type << 1) >> 1 "jiggles" the last bit from the left off
+// That doesnt work with signed types, so we need to do a different approach for them so CLIP_TOP_BIT is defined for signed types
+
 namespace Dxob
 {
     namespace Intr
@@ -34,6 +37,15 @@ namespace Dxob
             return byteCount;
 
         }
+        template<std::integral valueType>
+        valueType constexpr CalculateAllButMaxBit()
+        {
+            valueType temp = 0;
+			for (u8 i = 0; i < sizeof(valueType) * 8 - 1; i++)
+				temp |= 1 << i;
+			return temp;
+
+        }
     }
 
     template<std::integral valueType = u16>
@@ -47,13 +59,15 @@ namespace Dxob
             this->m_data = reinterpret_cast<u8*>(temp);
             this->Size = Size;
             this->bitsPerIndex = bitsPerIndex;
-            m_selectBitmask =  calculateSelectBitmask();
+            assert(bitsPerIndex % 8 == 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
+            m_selectBitmask = calculateSelectBitmask();
         }
         ByteArrayWrapper(u8* data, u64 Size, u8 bitsPerIndex) {
 			this->m_data = data;
 			this->Size = Size;
 			this->bitsPerIndex = bitsPerIndex;
-			m_selectBitmask =  calculateSelectBitmask();
+            assert(bitsPerIndex % 8 == 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
+            m_selectBitmask =  calculateSelectBitmask();
 		}
         ByteArrayWrapper(const ByteArrayWrapper& other)
         {
@@ -64,7 +78,8 @@ namespace Dxob
 			this->Size = other.Size;
 			this->bitsPerIndex = other.bitsPerIndex;
 			m_selectBitmask =  calculateSelectBitmask();
-			memcpy(m_data, other.m_data, Intr::GetByteSize(other.Size, other.bitsPerIndex));
+            assert(bitsPerIndex % 8 == 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
+            memcpy(m_data, other.m_data, Intr::GetByteSize(other.Size, other.bitsPerIndex));
 		}
         ByteArrayWrapper(ByteArrayWrapper&& other)
         {
@@ -75,6 +90,7 @@ namespace Dxob
             other.m_data = nullptr;
             other.Size = 0;
             other.bitsPerIndex = 0;
+            assert(bitsPerIndex % 8 == 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
             other.m_selectBitmask = 0;
         }
         ByteArrayWrapper(std::span<valueType> data, u8 bitsPerIndex = -1)
@@ -87,6 +103,7 @@ namespace Dxob
             this->m_data = reinterpret_cast<u8*>(temp);
             this->Size = data.size();
             this->bitsPerIndex = bitsPerIndex;
+            assert(bitsPerIndex % 8 == 0 && std::is_signed<valueType>); // Non standard bit sizes are not supported for signed types
             m_selectBitmask = calculateSelectBitmask();
             for (u64 i = 0; i < data.size(); i++)
 				NoGuardWrite(i, data[i]);
@@ -127,54 +144,25 @@ namespace Dxob
 
         u8* GetDataRaw() {return m_data;}
         const u8* GetDataRaw() const {return m_data;}
+        std::span<u8> GetData() {return std::span<u8>(m_data, Size);}
+		std::span<const u8> GetData() const {return std::span<const u8>(m_data, Size);} 
+           
         u64 GetSize() const {return Size;} // These get inlined cuz templates
         u8 GetBitsPerIndex() const {return bitsPerIndex;}
         valueType operator[](u64 index) { return NoGuardRead(index); }
         valueType NoGuardRead(u64 index, bool AvoidSlam = false)
         {
-            u64 startByte = floor(index * bitsPerIndex / 8); // Get the byte that the index starts in
-            u64 startBit = index * bitsPerIndex % 8; // Get the bit that the index starts at
-
-            u64 endByte = floor((index + 1) * bitsPerIndex / 8); // Get the byte that the index ends in
-            u64 endBit = (index + 1) * bitsPerIndex % 8; // Get the bit that the index ends at
-
-            valueType value;
-
-            valueType tempUnmasked = 0;
-            u64 cpyCount = endByte - startByte;
-            if (cpyCount < Intr::GetBytesForBitCount(bitsPerIndex))
-                cpyCount = Intr::GetBytesForBitCount(bitsPerIndex);
-            else if (endBit != 0)
-                cpyCount++;
-            memcpy(reinterpret_cast<void*>(&tempUnmasked), m_data + startByte, cpyCount);
-            valueType maskClone = m_selectBitmask;
-            maskClone <<= startBit;
-            if (!AvoidSlam)
-                value = (tempUnmasked & maskClone) >> startBit;
-            else
-                value = tempUnmasked;
-            return value;
+            if constexpr (std::is_signed<valueType>::value)
+				return NoGuardReadSigned(index, AvoidSlam);
+			else
+                return NoGuardReadNonSigned(index, AvoidSlam);
         }
         void NoGuardWrite(u64 index, valueType val)
         {
-            u64 startByte = floor(index * bitsPerIndex / 8); // Get the byte that the index starts in
-			u64 startBit = index * bitsPerIndex % 8; // Get the bit that the index starts at
-            u64 endByte = floor((index + 1) * bitsPerIndex / 8); // Get the byte that the index ends in
-            u64 endBit = (index + 1) * bitsPerIndex % 8; // Get the bit that the index ends at
-            u64 cpyCount = endByte - startByte;
-            if (cpyCount < Intr::GetBytesForBitCount(bitsPerIndex))
-                cpyCount = Intr::GetBytesForBitCount(bitsPerIndex);
-            else if (endBit != 0)
-				cpyCount++;
-            valueType orig = NoGuardRead(index, true); // Get the value at the index
-            valueType maskClone = m_selectBitmask;
-            valueType valClamped = val & maskClone; // This should just take N bits from the value
-            valClamped <<= startBit; // Shift the value to the start bit
-            maskClone <<= startBit; // Shift the mask to the start bit
-            valueType maskNeg = ~maskClone; // Get the inverse of the mask
-            orig &= maskNeg; // Clear the bits that are going to be replaced
-            orig |= valClamped; // Set the bits that are going to be replaced
-            memcpy(m_data + startByte, &orig, cpyCount); // Write the value back to the data
+            if constexpr (std::is_signed<valueType>::value)
+                NoGuardWriteSigned(index, val);
+            else
+                NoGuardWriteNonSigned(index, val);
         }
    
         // Begin function
@@ -195,7 +183,6 @@ namespace Dxob
 				mask |= 1 << i;
 			return mask;
 		}
-    private:
         u8 CalculateMinBitsForValue(valueType value)
         {
 			u8 bits = 0;
@@ -206,10 +193,93 @@ namespace Dxob
 			}
 			return bits;
 		}
+        valueType NoGuardReadNonSigned(u64 index, bool AvoidSlam = false)
+        {
+            u64 startByte = floor(index * bitsPerIndex / 8); // Get the byte that the index starts in
+            u64 startBit = (index * bitsPerIndex % 8) + 1;
+            u64 cpyCount = CalculateCpyCount(index);
+            valueType value;
+            u64 tempUnmasked = 0;
+            memcpy(reinterpret_cast<void*>(&tempUnmasked), m_data + startByte, cpyCount);
+            u64 maskClone = m_selectBitmask;
+            maskClone <<= startBit;
+            if (!AvoidSlam)
+                value = (tempUnmasked & maskClone) >> startBit;
+            else
+                value = tempUnmasked;
+            return valueType(value);
+        }
+        void NoGuardWriteNonSigned(u64 index, valueType val)
+        {
+            u64 startByte = floor(index * bitsPerIndex / 8); // Get the byte that the index starts in
+            u64 startBit = (index * bitsPerIndex % 8);
+            u64 cpyCount = CalculateCpyCount(index);
+            valueType orig = NoGuardReadNonSigned(index, true); // Get the value at the index
+            u64 maskClone = m_selectBitmask;
+            valueType valClamped = val & maskClone; // This should just take N bits from the value
+            valClamped <<= startBit; // Shift the value to the start bit
+            maskClone <<= startBit; // Shift the mask to the start bit
+            valueType maskNeg = ~maskClone; // Get the inverse of the mask
+            orig &= maskNeg; // Clear the bits that are going to be replaced
+            orig |= valClamped; // Set the bits that are going to be replaced
+            memcpy(m_data + startByte, &orig, cpyCount); // Write the value back to the data
+        }
+        
+        void NoGuardWriteSigned(u64 index, valueType val)
+        {
+            valueType newVal;
+            if (val < 0)
+            {
+                // Remove the sign bit
+                newVal = CLIP_TOP_BIT(val);
+                newVal |= 1 << (bitsPerIndex - 1);
+            }
+            else
+            {
+				newVal = val;
+			}
+            return NoGuardWriteNonSigned(index, newVal);
+        }
+        valueType NoGuardReadSigned(u64 index, bool AvoidSlam = false)
+        {
+            using USS = UnsignedSameSize<valueType>::type;
+			valueType temp = NoGuardReadNonSigned(index, AvoidSlam);
+            bool isSigned = temp & (1 << (bitsPerIndex - 1));
+            if (isSigned)
+            {
+                // "Design" the value so its non signed
+                // USS inverseTemp = ~temp; // Sets all on bits to 0 and all off bits to 1
+                //u8 newSignBitLocation = bitsPerIndex - 1;
+                USS newData = ~0; // Set all bits to 1
+                // "smear" the sign bit over from the end to the real sign location to keep value
+                newData &= temp;
+                valueType returnData = 0;
+                memcpy(&returnData, &newData, sizeof(valueType));
+                return returnData;
+            }
+            else
+				return valueType(temp);
+		}
+
+
+        
+        u64 CalculateCpyCount(u64 index)
+        {
+            u64 startByte = floor(index * bitsPerIndex / 8); // Get the byte that the index starts in
+            u64 startBit = index * bitsPerIndex % 8; // Get the bit that the index starts at
+            u64 endByte = floor((index + 1) * bitsPerIndex / 8); // Get the byte that the index ends in
+            u64 endBit = (index + 1) * bitsPerIndex % 8; // Get the bit that the index ends at
+            u64 cpyCount = endByte - startByte;
+            if (cpyCount < Intr::GetBytesForBitCount(bitsPerIndex))
+                cpyCount = Intr::GetBytesForBitCount(bitsPerIndex);
+            else if (endBit != 0)
+                cpyCount++;
+            return cpyCount;
+        }
     private:
         u8* m_data;
         u64 Size = 0;
-        valueType m_selectBitmask = 0;
+        u64 m_selectBitmask = 0;
         u8 bitsPerIndex = 0;
 
     };
