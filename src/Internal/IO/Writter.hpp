@@ -13,7 +13,8 @@ namespace Dxob
 	{
 	public:
 		Writer() {}
-		void Write(const HeightDataAccessor& data, std::ostream& writeLoc);
+		void Write(HeightDataAccessor& data, BinaryStream& writeLoc);
+		static u16 CalculateMaxDelta(std::span<u16> data);
 	private:
 		struct dataCollectionReturn
 		{
@@ -22,13 +23,11 @@ namespace Dxob
 			std::vector<u16> deltas;
 		};
 	private:
-		void WriteHeader(const HeightDataAccessor& data, std::ostream& writeLoc, bool gzipData = true);
-		u16 CalculateMaxDelta(std::span<u16> data);
-		dataCollectionReturn IsPerRowBetter(const HeightDataAccessor& data, std::ostream& writeLoc);
+		dataCollectionReturn IsPerRowBetter(HeightDataAccessor& data, BinaryStream& writeLoc);
 		u8 CalculateMinBitsForValue(u16 value);
 
-		void WritePerRowDeltas(const std::vector<u16>& deltas, std::ostream& writeLoc, dataCollectionReturn& d);
-		void WriteAllData(const HeightDataAccessor& data, std::ostream& writeLoc, dataCollectionReturn& d);
+		void WritePerRowDeltas(const std::vector<u16>& deltas, BinaryStream& writeLoc, dataCollectionReturn& d, HeightDataAccessor& data);
+		void WriteAllData(HeightDataAccessor& data, BinaryStream& writeLoc, dataCollectionReturn& d);
 		u64 CalculateBytesForBitsPerValue(u64 bits, u64 count);
 	};
 }
