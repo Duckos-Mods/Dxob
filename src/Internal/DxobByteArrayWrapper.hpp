@@ -59,14 +59,16 @@ namespace Dxob
             this->m_data = reinterpret_cast<u8*>(temp);
             this->Size = Size;
             this->bitsPerIndex = bitsPerIndex;
-            assert(bitsPerIndex % 8 == 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
+            this->totalBytesTaken = Intr::GetByteSize(Size, bitsPerIndex);
+           // assert(bitsPerIndex % 8 != 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
             m_selectBitmask = calculateSelectBitmask();
+
         }
         ByteArrayWrapper(u8* data, u64 Size, u8 bitsPerIndex) {
 			this->m_data = data;
 			this->Size = Size;
 			this->bitsPerIndex = bitsPerIndex;
-            assert(bitsPerIndex % 8 == 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
+            assert(bitsPerIndex % 8 != 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
             m_selectBitmask =  calculateSelectBitmask();
 		}
         ByteArrayWrapper(const ByteArrayWrapper& other)
@@ -78,7 +80,7 @@ namespace Dxob
 			this->Size = other.Size;
 			this->bitsPerIndex = other.bitsPerIndex;
 			m_selectBitmask =  calculateSelectBitmask();
-            assert(bitsPerIndex % 8 == 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
+            assert(bitsPerIndex % 8 != 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
             memcpy(m_data, other.m_data, Intr::GetByteSize(other.Size, other.bitsPerIndex));
 		}
         ByteArrayWrapper(ByteArrayWrapper&& other)
@@ -90,7 +92,7 @@ namespace Dxob
             other.m_data = nullptr;
             other.Size = 0;
             other.bitsPerIndex = 0;
-            assert(bitsPerIndex % 8 == 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
+            assert(bitsPerIndex % 8 != 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
             other.m_selectBitmask = 0;
         }
         ByteArrayWrapper(std::span<valueType> data, u8 bitsPerIndex = -1)
@@ -103,7 +105,7 @@ namespace Dxob
             this->m_data = reinterpret_cast<u8*>(temp);
             this->Size = data.size();
             this->bitsPerIndex = bitsPerIndex;
-            assert(bitsPerIndex % 8 == 0 && std::is_signed<valueType>); // Non standard bit sizes are not supported for signed types
+            assert(bitsPerIndex % 8 != 0 && std::is_signed<valueType>); // Non standard bit sizes are not supported for signed types
             m_selectBitmask = calculateSelectBitmask();
             for (u64 i = 0; i < data.size(); i++)
 				NoGuardWrite(i, data[i]);
@@ -146,6 +148,7 @@ namespace Dxob
         const u8* GetDataRaw() const {return m_data;}
         std::span<u8> GetData() {return std::span<u8>(m_data, Size);}
 		std::span<const u8> GetData() const {return std::span<const u8>(m_data, Size);} 
+        u64 GetTotalBytesTaken() const {return totalBytesTaken;}
            
         u64 GetSize() const {return Size;} // These get inlined cuz templates
         u8 GetBitsPerIndex() const {return bitsPerIndex;}
@@ -196,7 +199,7 @@ namespace Dxob
         valueType NoGuardReadNonSigned(u64 index, bool AvoidSlam = false)
         {
             u64 startByte = floor(index * bitsPerIndex / 8); // Get the byte that the index starts in
-            u64 startBit = (index * bitsPerIndex % 8) + 1;
+            u64 startBit = (index * bitsPerIndex % 8);
             u64 cpyCount = CalculateCpyCount(index);
             valueType value;
             u64 tempUnmasked = 0;
@@ -280,6 +283,7 @@ namespace Dxob
         u8* m_data;
         u64 Size = 0;
         u64 m_selectBitmask = 0;
+        u64 totalBytesTaken = 0;
         u8 bitsPerIndex = 0;
 
     };
