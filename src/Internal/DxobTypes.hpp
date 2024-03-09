@@ -2,7 +2,8 @@
 #include <concepts>
 #include <vector>
 #include "Defines.hpp"
-
+#include <iostream>
+#include <span>
 namespace Dxob
 {
     using u8 = unsigned char;
@@ -27,4 +28,83 @@ namespace Dxob
     #endif
 
     static_assert(DataStore<DXOB_DATASTORE<u8>>, "DXOB_DATASTORE must satisfy the DataStore concept");
+
+    class BinaryStream : public std::vector<u8> {
+    private:
+    public:
+        BinaryStream(u64 buffInitSize = 1024) : std::vector<u8>() { this->reserve(buffInitSize); }
+
+        BinaryStream& write(const u8* data, u64 size)
+        {
+            this->insert(this->end(), data, data + size);
+            return *this;
+        }
+        BinaryStream& write(const u8* data, u64 size, u64 offset)
+        {
+			if (offset + size > this->size())
+				this->resize(offset + size);
+			for (u64 i = 0; i < size; i++)
+				this->at(offset + i) = data[i];
+            return *this;
+        }
+        BinaryStream& write(std::span<u8> data)
+        {
+			this->insert(this->end(), data.begin(), data.end());
+            return *this;
+        }
+        template<std::integral T>
+        BinaryStream& write(std::span<T> data)
+        {
+            u64 byteSize = data.size() * sizeof(T);
+            this->reserve(this->size() + byteSize);
+            this->insert(this->end(), reinterpret_cast<u8*>(data.data()), reinterpret_cast<u8*>(data.data()) + byteSize);
+            return *this;
+        }
+
+        u8& operator[](u64 index)
+        {
+			return this->at(index);
+		}
+
+        BinaryStream& operator<< (u8 val)
+        {
+            this->push_back(val);
+            return *this;
+        }
+
+        BinaryStream& operator<< (std::span<u8> val)
+        {
+            this->insert(this->end(), val.begin(), val.end());
+			return *this;
+        }
+
+
+
+    };
+    #include <type_traits>
+
+    template <typename T>
+    struct UnsignedSameSize;
+
+    template <>
+    struct UnsignedSameSize<int8_t> {
+        using type = uint8_t;
+    };
+
+    template <>
+    struct UnsignedSameSize<int16_t> {
+        using type = uint16_t;
+    };
+
+    template <>
+    struct UnsignedSameSize<int32_t> {
+        using type = uint32_t;
+    };
+
+    template <>
+    struct UnsignedSameSize<int64_t> {
+        using type = uint64_t;
+    };
+
+
 }
