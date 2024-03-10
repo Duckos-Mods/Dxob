@@ -100,7 +100,7 @@ namespace Dxob
 		return bytes;
 	}
 #ifndef DXOB_USING_SIMD
-	static u16 Writer::CalculateMaxDelta(std::span<u16> data)
+	u16 Writer::CalculateMaxDelta(std::span<u16> data)
 	{
 		uint16_t minNum = std::numeric_limits<uint16_t>::max();
 		uint16_t maxNum = std::numeric_limits<uint16_t>::min();
@@ -117,7 +117,7 @@ namespace Dxob
 		return maxNum - minNum;
 	}
 #else
-	static u16 Writer::CalculateMaxDelta(std::span<u16> data)
+	u16 Writer::CalculateMaxDelta(std::span<u16> data)
 	{
 		uint16_t minNum = std::numeric_limits<uint16_t>::max();
 		uint16_t maxNum = std::numeric_limits<uint16_t>::min();
