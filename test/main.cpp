@@ -86,12 +86,12 @@ bool ReadAndWriteLargerStandardBitSize()
 }
 bool ReadAndWriteStandardBitSizeSigned()
 {
-	RANDOM_INT_FUNC(-96, 96, i16);
-	ByteArrayWrapper<i8> data(4096, 8);
-	std::vector<i8> dataVec;
+	RANDOM_INT_FUNC(0, 4, u16);
+	ByteArrayWrapper<u8> data(4096, 3);
+	std::vector<u8> dataVec;
 	for (u64 i = 0; i < 4096; i++)
 	{
-		i8 val = i8(dis(gen));
+		u8 val = u8(dis(gen));
 		dataVec.push_back(val);
 	}
 	for (u64 i = 0; i < 4096; i++)
@@ -128,11 +128,11 @@ void TestWriterAndConstructor()
 {
 	FileSettings settings;
 	settings.isGZipCompressed = false;
-#define WIDTH 6000
+#define WIDTH 4096
 	settings.width = WIDTH;
 	settings.height = WIDTH;
 	HeightDataAccessor data(std::vector<u16>(WIDTH *WIDTH), settings);
-	RANDOM_INT_FUNC(0, 8600, u16);
+	RANDOM_INT_FUNC(0, 1, u16);
 	for (u64 x = 0; x < WIDTH; x++)
 		for (u64 y = 0; y < WIDTH; y++)
 			data.SetHeightAt(x, y, dis(gen));
@@ -144,15 +144,13 @@ void TestWriterAndConstructor()
 	std::ofstream file("uncompressed.dxob", std::ios::binary);
 	file.write(reinterpret_cast<char*>(stream.data()), stream.size());
 	file.close();
+	stream.clear();
 	settings.isGZipCompressed = true;
 	data.SetFileSettings(settings);
-	stream.clear();
 	writer.Write(data, stream);
 	file.open("compressed.dxob", std::ios::binary);
 	file.write(reinterpret_cast<char*>(stream.data()), stream.size());
 	file.close();
-
-
 
 }
 

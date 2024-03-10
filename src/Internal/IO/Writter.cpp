@@ -4,10 +4,12 @@
 #include <zlib.h>
 #include <algorithm>
 #include <ranges>
+#include "../Defines.hpp"
 #include <limits>
 
 namespace Dxob
 {
+	static const char* eoa = "EOA";
 	void Writer::Write(HeightDataAccessor& data, BinaryStream& writeLoc)
 	{
 		u32 fileStart = 'DXOB';
@@ -21,8 +23,10 @@ namespace Dxob
 		if (isBetter.isBetter)
 			boolData |= 0b00000010;
 		writeLoc.write(reinterpret_cast<u8*>(&fileStart), SZOV(fileStart))
-			.write(reinterpret_cast<u8*>(&fileSettings.DxobVersion), sizeof(u32))
-			.write(reinterpret_cast<u8*>(&boolData), sizeof(u8));
+			.write(reinterpret_cast<u8*>(&fileSettings.DxobVersion), SZOV(fileSettings.DxobVersion))
+			.write(reinterpret_cast<u8*>(&boolData), SZOV(boolData))
+			.write(reinterpret_cast<u8*>(&fileSettings.height), SZOV(fileSettings.height))
+			.write(reinterpret_cast<u8*>(&fileSettings.width), SZOV(fileSettings.width));
 		BinaryStream dataWriteLocStream(8192);
 
 		if (isBetter.isBetter)
@@ -52,8 +56,7 @@ namespace Dxob
 	{
 		auto& dt = d.deltas;
 		u64 size = dt.size();
-		const char* eoa = "EOA";
-		writeLoc.write(reinterpret_cast<u8*>(&size), sizeof(u64))
+		writeLoc.write(reinterpret_cast<u8*>(&size), SZOV(size))
 			.write(std::span<u16>(dt.data(), dt.size()))
 			.write(reinterpret_cast<u8*>(const_cast<char*>(eoa)), 3);
 		const u64 with = data.GetFileSettings().width;
@@ -68,9 +71,9 @@ namespace Dxob
 			u64 size = dataWrapper.GetTotalBytesTaken();
 			for (u64 i = 0; i < row.size(); i++)
 				dataWrapper.NoGuardWrite(i, row[i] - lowest);
-			writeLoc.write(reinterpret_cast<u8*>(&lowest), sizeof(u16))
-				.write(reinterpret_cast<u8*>(&bits), sizeof(u8))
-				.write(reinterpret_cast<u8*>(&size), sizeof(u64))
+			writeLoc.write(reinterpret_cast<u8*>(&lowest), SZOV(lowest))
+				.write(reinterpret_cast<u8*>(&bits), SZOV(bits))
+				.write(reinterpret_cast<u8*>(&size), SZOV(size))
 				.write(std::span<u8>(dataWrapper.GetDataRaw(), dataWrapper.GetTotalBytesTaken()))
 				.write(reinterpret_cast<u8*>(const_cast<char*>(eoa)), 3);
 		}
@@ -78,18 +81,19 @@ namespace Dxob
 
 	void Writer::WriteAllData(HeightDataAccessor& data, BinaryStream& writeLoc, dataCollectionReturn& d)
 	{
-		u8 minBits = CalculateMinBitsForValue(d.bitCost);
-		u64 totalDataLeng = data.GetFileSettings().height * data.GetFileSettings().width;
-		u64 bytecount = CalculateBytesForBitsPerValue(minBits, totalDataLeng);
-		ByteArrayWrapper<u16> dataWrapper(bytecount, minBits);
 		std::span<u16> heightData(data.GetHeightData().data(), data.GetHeightData().size());
-		u16 lowest = std::min_element(heightData.begin(), heightData.end()).operator*(); 
+		u16 maxDelta = CalculateMaxDelta(heightData);
+		u8 bits = CalculateMinBitsForValue(maxDelta);
+		u16 lowest = std::min_element(heightData.begin(), heightData.end()).operator*();
+		u64 size = CalculateBytesForBitsPerValue(bits, heightData.size());
+		ByteArrayWrapper<u16> dataWrapper(heightData.size(), bits);
 		for (u64 i = 0; i < heightData.size(); i++)
-			dataWrapper.NoGuardWrite(i, heightData[i] - lowest);
-		writeLoc.write(reinterpret_cast<u8*>(&lowest), sizeof(u16))
-			.write(reinterpret_cast<u8*>(&minBits), sizeof(u8))
-			.write(reinterpret_cast<u8*>(&bytecount), sizeof(u64))
-			.write(dataWrapper.GetDataRaw(), dataWrapper.GetTotalBytesTaken());
+			dataWrapper.NoGuardWrite(i, heightData[i]);
+		writeLoc.write(reinterpret_cast<u8*>(&lowest), SZOV(lowest))
+			.write(reinterpret_cast<u8*>(&bits), SZOV(bits))
+			.write(reinterpret_cast<u8*>(&size), SZOV(size))
+			.write(std::span<u8>(dataWrapper.GetDataRaw(), dataWrapper.GetTotalBytesTaken()))
+			.write(reinterpret_cast<u8*>(const_cast<char*>(eoa)), 3);
 	}
 
 	u64 Writer::CalculateBytesForBitsPerValue(u64 bits, u64 count)
