@@ -89,7 +89,7 @@ namespace Dxob
 		writeLoc.write(reinterpret_cast<u8*>(&lowest), sizeof(u16))
 			.write(reinterpret_cast<u8*>(&minBits), sizeof(u8))
 			.write(reinterpret_cast<u8*>(&bytecount), sizeof(u64))
-			.write(dataWrapper.GetDataRaw(), dataWrapper.GetSize());
+			.write(dataWrapper.GetDataRaw(), dataWrapper.GetTotalBytesTaken());
 	}
 
 	u64 Writer::CalculateBytesForBitsPerValue(u64 bits, u64 count)
