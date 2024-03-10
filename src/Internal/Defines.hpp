@@ -37,7 +37,7 @@
 #ifndef SZOV
 #define SZOV(x) (sizeof(decltype(x)))
 #endif
-
+#define DISABLE_SIMD
 #ifndef DISABLE_SIMD
 #define DXOB_USING_SIMD
 #endif
