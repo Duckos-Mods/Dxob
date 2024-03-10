@@ -196,12 +196,17 @@ namespace Dxob
 			}
 			return bits;
 		}
-        valueType NoGuardReadNonSigned(u64 index, bool AvoidSlam = false)
+        valueType NoGuardReadNonSigned(u64 index, bool AvoidSlam = false, u64* rawWriteLoc = nullptr)
         {
             u64 startByte = floor(index * bitsPerIndex / 8); // Get the byte that the index starts in
             u64 startBit = (index * bitsPerIndex % 8);
+            if (startBit == 8)
+            {
+                startBit = 0;
+				startByte++;
+            }
             u64 cpyCount = CalculateCpyCount(index);
-            valueType value;
+            u64 value;
             u64 tempUnmasked = 0;
             memcpy(reinterpret_cast<void*>(&tempUnmasked), m_data + startByte, cpyCount);
             u64 maskClone = m_selectBitmask;
@@ -210,19 +215,29 @@ namespace Dxob
                 value = (tempUnmasked & maskClone) >> startBit;
             else
                 value = tempUnmasked;
+            if (rawWriteLoc != nullptr)
+                *rawWriteLoc = tempUnmasked;
+
             return valueType(value);
         }
         void NoGuardWriteNonSigned(u64 index, valueType val)
         {
+            u64 ourVal = val;
             u64 startByte = floor(index * bitsPerIndex / 8); // Get the byte that the index starts in
             u64 startBit = (index * bitsPerIndex % 8);
+            if (startBit == 8)
+            {
+                startBit = 0;
+                startByte++;
+            }
             u64 cpyCount = CalculateCpyCount(index);
-            valueType orig = NoGuardReadNonSigned(index, true); // Get the value at the index
+            u64 orig = 0;
+            NoGuardReadNonSigned(index, true, &orig); // Get the value at the index
             u64 maskClone = m_selectBitmask;
-            valueType valClamped = val & maskClone; // This should just take N bits from the value
+            u64 valClamped = ourVal & maskClone; // This should just take N bits from the value
             valClamped <<= startBit; // Shift the value to the start bit
             maskClone <<= startBit; // Shift the mask to the start bit
-            valueType maskNeg = ~maskClone; // Get the inverse of the mask
+            u64 maskNeg = ~maskClone; // Get the inverse of the mask
             orig &= maskNeg; // Clear the bits that are going to be replaced
             orig |= valClamped; // Set the bits that are going to be replaced
             memcpy(m_data + startByte, &orig, cpyCount); // Write the value back to the data
@@ -277,6 +292,11 @@ namespace Dxob
                 cpyCount = Intr::GetBytesForBitCount(bitsPerIndex);
             else if (endBit != 0)
                 cpyCount++;
+            else if (startBit == 8)
+            {
+                cpyCount++;
+				startBit = 0;
+            }
             return cpyCount;
         }
     private:
