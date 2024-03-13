@@ -19,46 +19,45 @@ namespace Dxob
 		if (data.IsGzip())
 			boolData = 0b00000001;
 
-		auto isBetter = IsPerRowBetter(data, writeLoc);
+		auto isBetter = IsPerRowBetter(data);
 		if (isBetter.isBetter)
 			boolData |= 0b00000010;
-		writeLoc.write(reinterpret_cast<u8*>(&fileStart), SZOV(fileStart))
-			.write(reinterpret_cast<u8*>(&fileSettings.DxobVersion), SZOV(fileSettings.DxobVersion))
-			.write(reinterpret_cast<u8*>(&boolData), SZOV(boolData))
-			.write(reinterpret_cast<u8*>(&fileSettings.height), SZOV(fileSettings.height))
-			.write(reinterpret_cast<u8*>(&fileSettings.width), SZOV(fileSettings.width));
+		writeLoc.write(&fileStart)
+			.write(&fileSettings.DxobVersion)
+			.write(&boolData)
+			.write(&fileSettings.height)
+			.write(&fileSettings.width);
 		BinaryStream dataWriteLocStream(8192);
-
 		if (isBetter.isBetter)
-			WritePerRowDeltas(isBetter.deltas, dataWriteLocStream, isBetter, data);
+			WritePerRowDeltas(isBetter.deltas, dataWriteLocStream, data);
 		else
-			WriteAllData(data, dataWriteLocStream, isBetter);
+			WriteAllData(data, dataWriteLocStream);
 
 		if (data.IsGzip())
 		{
 			// Create a buffer to store the compressed data
 			std::vector<u8> compressedData;
-			compressedData.resize(compressBound(dataWriteLocStream.size()));
+			compressedData.resize(compressBound(uLong(dataWriteLocStream.size())));
 			// Compress the data
-			uLongf compressedDataSize = compressedData.size();
-			compress(compressedData.data(), &compressedDataSize, reinterpret_cast<const Bytef*>(dataWriteLocStream.data()), dataWriteLocStream.size());
+			uLongf compressedDataSize = uLongf(compressedData.size()); 
+			compress(compressedData.data(), &compressedDataSize, reinterpret_cast<const Bytef*>(dataWriteLocStream.data()), uLong(dataWriteLocStream.size()));
 			// Write the compressed data to the file
 			
 			writeLoc.write(reinterpret_cast<u8*>(compressedData.data()), compressedDataSize);
 		}
 		else
-			writeLoc.write(dataWriteLocStream.data(), dataWriteLocStream.size());
+			writeLoc.write(dataWriteLocStream.data(), dataWriteLocStream.size());              
 
 		return; 
 	}
 
-	void Writer::WritePerRowDeltas(const std::vector<u16>& deltas, BinaryStream& writeLoc, dataCollectionReturn& d, HeightDataAccessor& data)
+	void Writer::WritePerRowDeltas(const std::vector<u16>& deltas, BinaryStream& writeLoc, HeightDataAccessor& data)
 	{
-		auto& dt = d.deltas;
+		/*auto& dt = d.deltas;
 		u64 size = dt.size();
-		writeLoc.write(reinterpret_cast<u8*>(&size), SZOV(size))
+		writeLoc.write(&size)
 			.write(std::span<u16>(dt.data(), dt.size()))
-			.write(reinterpret_cast<u8*>(const_cast<char*>(eoa)), 3);
+			.write(eoa, 3);*/
 		const u64 with = data.GetFileSettings().width;
 		std::span<u16> heightData(data.GetHeightData().data(), data.GetHeightData().size());
 		for (int i = 0; i < deltas.size(); i++)
@@ -68,18 +67,18 @@ namespace Dxob
 			std::span<u16> row = heightData.subspan(i * with, with);
 			u16 lowest = std::min_element(row.begin(), row.end()).operator*();
 			ByteArrayWrapper<u16> dataWrapper(row.size(), bits);
-			u64 size = dataWrapper.GetTotalBytesTaken();
-			for (u64 i = 0; i < row.size(); i++)
-				dataWrapper.NoGuardWrite(i, row[i] - lowest);
-			writeLoc.write(reinterpret_cast<u8*>(&lowest), SZOV(lowest))
-				.write(reinterpret_cast<u8*>(&bits), SZOV(bits))
-				.write(reinterpret_cast<u8*>(&size), SZOV(size))
+			u64 sliceSize = dataWrapper.GetTotalBytesTaken();
+			for (u64 x = 0; x < row.size(); x++)
+				dataWrapper.NoGuardWrite(x, row[x] - lowest);
+			writeLoc.write(&lowest)
+				.write(&bits)
+				.write(&sliceSize)
 				.write(std::span<u8>(dataWrapper.GetDataRaw(), dataWrapper.GetTotalBytesTaken()))
-				.write(reinterpret_cast<u8*>(const_cast<char*>(eoa)), 3);
+				.write(eoa, 3);
 		}
 	}
 
-	void Writer::WriteAllData(HeightDataAccessor& data, BinaryStream& writeLoc, dataCollectionReturn& d)
+	void Writer::WriteAllData(HeightDataAccessor& data, BinaryStream& writeLoc)
 	{
 		std::span<u16> heightData(data.GetHeightData().data(), data.GetHeightData().size());
 		u16 maxDelta = CalculateMaxDelta(heightData);
@@ -89,11 +88,11 @@ namespace Dxob
 		ByteArrayWrapper<u16> dataWrapper(heightData.size(), bits);
 		for (u64 i = 0; i < heightData.size(); i++)
 			dataWrapper.NoGuardWrite(i, heightData[i]);
-		writeLoc.write(reinterpret_cast<u8*>(&lowest), SZOV(lowest))
-			.write(reinterpret_cast<u8*>(&bits), SZOV(bits))
-			.write(reinterpret_cast<u8*>(&size), SZOV(size))
+		writeLoc.write(&lowest)
+			.write(&bits)
+			.write(&size)
 			.write(std::span<u8>(dataWrapper.GetDataRaw(), dataWrapper.GetTotalBytesTaken()))
-			.write(reinterpret_cast<u8*>(const_cast<char*>(eoa)), 3);
+			.write(eoa, 3);
 	}
 
 	u64 Writer::CalculateBytesForBitsPerValue(u64 bits, u64 count)
@@ -139,8 +138,8 @@ namespace Dxob
 			chunkMin = _mm256_min_epu16(chunkMin, _mm256_shuffle_epi32(chunkMin, _MM_SHUFFLE(0, 0, 0, 1)));
 			chunkMax = _mm256_max_epu16(chunkMax, _mm256_shuffle_epi32(chunkMax, _MM_SHUFFLE(0, 0, 0, 1)));
 
-			uint16_t minArr[16];
-			uint16_t maxArr[16];
+			uint16_t minArr[16] = { 0 };
+			uint16_t maxArr[16] = { 0 };
 			_mm256_storeu_si256(reinterpret_cast<__m256i*>(minArr), chunkMin);
 			_mm256_storeu_si256(reinterpret_cast<__m256i*>(maxArr), chunkMax);
 
@@ -166,7 +165,7 @@ namespace Dxob
 
 
 
-	Writer::dataCollectionReturn Writer::IsPerRowBetter(HeightDataAccessor& data, BinaryStream& writeLoc)
+	Writer::dataCollectionReturn Writer::IsPerRowBetter(HeightDataAccessor& data)
 	{
 		std::span<u16> heightData(data.GetHeightData().data(), data.GetHeightData().size());
 		u16 maxDeltaForAllData = CalculateMaxDelta(heightData);
@@ -174,12 +173,12 @@ namespace Dxob
 		u64 maxDeltaForAllDataBitCost = maxBitsForAllData * heightData.size();
 
 
-		u64 maxDeltaForPerRowBitCost = BIT_SIZE(u8) * data.GetFileSettings().height; // Calculate the size of the array of deltas
+		u64 maxDeltaForPerRowBitCost = 0; // Calculate the size of the array of deltas
 		u64 height = data.GetFileSettings().height;
 		std::vector<u16> perRowsDeltas(height, 0); // Create a vector to store the deltas for each row
 		for (u64 i = 0; i < height; i++)
 		{
-			u8 maxDelta = CalculateMaxDelta(heightData.subspan(i * data.GetFileSettings().width, data.GetFileSettings().width));
+			u16 maxDelta = CalculateMaxDelta(heightData.subspan(i * data.GetFileSettings().width, data.GetFileSettings().width));
 			u8 maxBits = CalculateMinBitsForValue(maxDelta);
 			if (maxBits <= 0)
 				maxBits = 1; // If the maxBits is 0, set it to 1 to avoid a divide by 0 error
