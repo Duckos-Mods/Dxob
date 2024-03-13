@@ -19,6 +19,7 @@ namespace Dxob
 		
 		//if (data.IsGzip()) // Removed GZIP becuase due to bitpacking, it can make the data larger than it was before
 		//	boolData = 0b00000001;
+		data.SetGzip(false);
 
 		auto isBetter = IsPerRowBetter(data);
 		if (isBetter.isBetter)
@@ -34,7 +35,7 @@ namespace Dxob
 		else
 			WriteAllData(data, dataWriteLocStream);
 
-		if (data.IsGzip())
+		if (data.IsGzip()) [[unlikely]]
 		{
 			// Create a buffer to store the compressed data
 			std::vector<u8> compressedData;

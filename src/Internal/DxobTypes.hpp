@@ -35,6 +35,8 @@ namespace Dxob
     public:
         BinaryStream(u64 buffInitSize = 1024) : std::vector<u8>() { this->reserve(buffInitSize); }
         BinaryStream(const u8* data, u64 size) : std::vector<u8>(data, data + size) {}
+        template<typename T> 
+        BinaryStream(const T* data, u64 size) : std::vector<u8>(reinterpret_cast<const u8*>(data), reinterpret_cast<const u8*>(data) + size) {}
 
         template<typename T>
         BinaryStream& write(const T* val, u64 size = -1)
