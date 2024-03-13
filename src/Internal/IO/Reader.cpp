@@ -1,6 +1,5 @@
 #include "Reader.hpp"
 #include "../DxobByteArrayWrapper.hpp"
-#include <zlib.h>
 
 namespace Dxob
 {
@@ -42,22 +41,6 @@ namespace Dxob
 		UsedData usedData(height, width);
 
 		BinaryStream& parseBuffer = data; 
-		if (isGzip) [[unlikely]]
-		{
-			uLongf uncompressedSize = 0;
-			uLongf compressedSize = uLongf(data.size() - data.tellg());
-			u8* compressedData = talloc<u8>(compressedSize);
-			if (compressedData == nullptr)
-				DXOB_THROW(std::bad_alloc());
-			data.read(compressedData, compressedSize);
-			uncompressedSize = compressBound(compressedSize);
-			u8* uncompressedData = talloc<u8>(uncompressedSize);
-			if (uncompressedData == nullptr)
-				DXOB_THROW(std::bad_alloc());
-			uncompress(uncompressedData, &uncompressedSize, compressedData, compressedSize);
-			parseBuffer = BinaryStream(uncompressedData, u32(uncompressedSize)); // Set the parse buffer to the uncompressed data
-		}
-		
 		if (isPerRow)
 		{
 			std::vector<u16> heightData;

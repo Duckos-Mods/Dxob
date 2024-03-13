@@ -1,7 +1,6 @@
 #include "Writter.hpp"
 #include "../DxobByteArrayWrapper.hpp"
 #include <tuple>
-#include <zlib.h>
 #include <algorithm>
 #include <ranges>
 #include "../Defines.hpp"
@@ -35,20 +34,7 @@ namespace Dxob
 		else
 			WriteAllData(data, dataWriteLocStream);
 
-		if (data.IsGzip()) [[unlikely]]
-		{
-			// Create a buffer to store the compressed data
-			std::vector<u8> compressedData;
-			compressedData.resize(compressBound(uLong(dataWriteLocStream.size())));
-			// Compress the data
-			uLongf compressedDataSize = uLongf(compressedData.size()); 
-			compress(compressedData.data(), &compressedDataSize, reinterpret_cast<const Bytef*>(dataWriteLocStream.data()), uLong(dataWriteLocStream.size()));
-			// Write the compressed data to the file
-			
-			writeLoc.write(reinterpret_cast<u8*>(compressedData.data()), compressedDataSize);
-		}
-		else
-			writeLoc.write(dataWriteLocStream.data(), dataWriteLocStream.size());              
+		writeLoc.write(dataWriteLocStream.data(), dataWriteLocStream.size());              
 
 		return; 
 	}
