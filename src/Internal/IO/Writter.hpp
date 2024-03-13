@@ -1,5 +1,6 @@
 #pragma once
 #include "../DxobTypes.hpp"
+#include "../DxobMemory.hpp"
 #include "../DxobSettings.hpp"
 #include "../DxobData.hpp"
 #include "../Defines.hpp"
@@ -23,11 +24,11 @@ namespace Dxob
 			std::vector<u16> deltas;
 		};
 	private:
-		dataCollectionReturn IsPerRowBetter(HeightDataAccessor& data, BinaryStream& writeLoc);
+		dataCollectionReturn IsPerRowBetter(HeightDataAccessor& data);
 		u8 CalculateMinBitsForValue(u16 value);
 
-		void WritePerRowDeltas(const std::vector<u16>& deltas, BinaryStream& writeLoc, dataCollectionReturn& d, HeightDataAccessor& data);
-		void WriteAllData(HeightDataAccessor& data, BinaryStream& writeLoc, dataCollectionReturn& d);
+		void WritePerRowDeltas(const std::vector<u16>& deltas, BinaryStream& writeLoc, HeightDataAccessor& data);
+		void WriteAllData(HeightDataAccessor& data, BinaryStream& writeLoc);
 		u64 CalculateBytesForBitsPerValue(u64 bits, u64 count);
 	};
 }
