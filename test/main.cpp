@@ -110,7 +110,7 @@ bool ReadAndWriteStandardBitSizeSigned()
 
 void BenchmarkFindMaximumDelta()
 {
-	u64 WIDTHH = 512 * 512;
+	u64 WIDTHH = u64(512)* 512;
 	std::vector<u16> data(WIDTHH);
 	RANDOM_INT_FUNC(0, -1, u16);
 	for (u64 i = 0; i < WIDTHH; i++)
@@ -124,15 +124,15 @@ void BenchmarkFindMaximumDelta()
 	std::cout << "Max delta: " << i << std::endl;
 }
 
-void TestWriterAndConstructor()
+bool TestWriterAndConstructor()
 {
 	FileSettings settings;
 	settings.isGZipCompressed = false;
-#define WIDTH 4096
+#define WIDTH 64
 	settings.width = WIDTH;
 	settings.height = WIDTH;
-	HeightDataAccessor data(std::vector<u16>(WIDTH *WIDTH), settings);
-	RANDOM_INT_FUNC(0, 1, u16);
+	HeightDataAccessor data(std::vector<u16>(WIDTH * WIDTH), settings);
+	RANDOM_INT_FUNC(0, 8500, u16);
 	for (u64 x = 0; x < WIDTH; x++)
 		for (u64 y = 0; y < WIDTH; y++)
 			data.SetHeightAt(x, y, dis(gen));
@@ -144,14 +144,18 @@ void TestWriterAndConstructor()
 	std::ofstream file("uncompressed.dxob", std::ios::binary);
 	file.write(reinterpret_cast<char*>(stream.data()), stream.size());
 	file.close();
-	stream.clear();
-	settings.isGZipCompressed = true;
-	data.SetFileSettings(settings);
-	writer.Write(data, stream);
-	file.open("compressed.dxob", std::ios::binary);
-	file.write(reinterpret_cast<char*>(stream.data()), stream.size());
-	file.close();
-
+	Reader reader;
+	stream.seekg(0);
+	auto HDA = reader.Process(stream);
+	auto& rawDataOne = data.GetHeightData();
+	auto& rawDataTwo = HDA.GetHeightData();
+	for (u64 i = 0; i < rawDataOne.size(); i++)
+		if (rawDataOne[i] != rawDataTwo[i])
+		{
+			std::cout << "Error: " << i << " " << rawDataOne[i] << " " << rawDataTwo[i] << std::endl;
+			return false;
+		}
+	return true;
 }
 
 int main() {
@@ -164,8 +168,9 @@ int main() {
 		failed++;
 	if (!ReadAndWriteStandardBitSizeSigned())
 		failed++;
+	if (!TestWriterAndConstructor())
+		failed++;
 	BenchmarkFindMaximumDelta();
-	TestWriterAndConstructor();
 
 
 
