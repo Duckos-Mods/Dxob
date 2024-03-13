@@ -27,6 +27,9 @@ namespace Dxob
 
             void SetHeightAt(i64 x, i64 y, u16 value);
         private:
+            void SetHeightData(std::vector<u16>& data) { m_heightData = std::move(data); }
+            friend class Reader;
+        private:
             PositionTranslationFunction m_positionTranslationFunction = nullptr;
 
             FileSettings m_fileSettings;
