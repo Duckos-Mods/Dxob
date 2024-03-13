@@ -31,8 +31,19 @@ namespace Dxob
 
     class BinaryStream : public std::vector<u8> {
     private:
+        u64 m_offset = 0;
     public:
         BinaryStream(u64 buffInitSize = 1024) : std::vector<u8>() { this->reserve(buffInitSize); }
+
+        template<typename T>
+        BinaryStream& write(const T* val, u64 size = -1)
+        {
+            if (size == -1) [[likely]]
+				size = sizeof(T);
+            const u8* data = reinterpret_cast<const u8*>(val);
+			this->insert(this->end(), data, data + size);
+			return *this;
+		}
 
         BinaryStream& write(const u8* data, u64 size)
         {
@@ -77,6 +88,46 @@ namespace Dxob
             this->insert(this->end(), val.begin(), val.end());
 			return *this;
         }
+
+        template<typename T>
+        BinaryStream& read(T* location, u64 size = -1)
+        {
+            if (size == -1) [[likely]]
+                size = sizeof(T);
+            u8* data = reinterpret_cast<u8*>(location);
+            for (u64 i = 0; i < size; i++)
+                data[i] = this->at(m_offset + i);
+            m_offset += size;
+            return *this;
+        }
+
+        BinaryStream& read(u8* location, u64 size)
+        {
+			for (u64 i = 0; i < size; i++)
+				location[i] = this->at(m_offset + i);
+			m_offset += size;
+		    return *this;
+        }
+
+        void peakn(u8* location, u64 size)
+        {
+            for (u64 i = 0; i < size; i++)
+                location[i] = this->at(m_offset + i);
+        }
+
+        template<typename T>
+        BinaryStream& peakn(T* location, u64 size = -1)
+        {
+            if (size == -1) [[likely]]
+				size = sizeof(T);
+            u8* data = reinterpret_cast<u8*>(location);
+            for (u64 i = 0; i < size; i++)
+				data[i] = this->at(m_offset + i);
+			return *this;
+		}
+
+        u64 tellg() const { return m_offset; }
+        void seekg(u64 offset) { m_offset = offset; }
 
 
 
