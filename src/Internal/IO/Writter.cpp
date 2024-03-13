@@ -16,8 +16,9 @@ namespace Dxob
 		FileSettings fileSettings = data.GetFileSettings();
 		// liitle endian u8
 		u8 boolData = 0x0;
-		if (data.IsGzip())
-			boolData = 0b00000001;
+		
+		//if (data.IsGzip()) // Removed GZIP becuase due to bitpacking, it can make the data larger than it was before
+		//	boolData = 0b00000001;
 
 		auto isBetter = IsPerRowBetter(data);
 		if (isBetter.isBetter)

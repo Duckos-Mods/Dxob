@@ -34,6 +34,7 @@ namespace Dxob
         u64 m_offset = 0;
     public:
         BinaryStream(u64 buffInitSize = 1024) : std::vector<u8>() { this->reserve(buffInitSize); }
+        BinaryStream(const u8* data, u64 size) : std::vector<u8>(data, data + size) {}
 
         template<typename T>
         BinaryStream& write(const T* val, u64 size = -1)

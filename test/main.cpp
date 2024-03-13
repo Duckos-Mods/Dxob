@@ -141,7 +141,7 @@ bool TestWriterAndConstructor()
 	BinaryStream stream;
 	writer.Write(data, stream);
 	// Dump the stream to a file
-	std::ofstream file("uncompressed.dxob", std::ios::binary);
+	std::ofstream file("compressed.dxob", std::ios::binary);
 	file.write(reinterpret_cast<char*>(stream.data()), stream.size());
 	file.close();
 	Reader reader;
