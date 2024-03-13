@@ -196,7 +196,6 @@ namespace Dxob
 private:
         constexpr valueType calculateSelectBitmask()
         {
-            assert(bitsPerIndex != 0);
             valueType mask = 0;
 			for (u8 i = 0; i < bitsPerIndex; i++)
 				mask |= 1 << i;
