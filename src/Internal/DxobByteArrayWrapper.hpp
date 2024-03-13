@@ -34,7 +34,7 @@ namespace Dxob
                 }
             }
             u64 byteCount = bitCount / 8;
-            return byteCount;
+            return u8(byteCount);
 
         }
         template<std::integral valueType>
@@ -53,11 +53,11 @@ namespace Dxob
     {
     public:
         ByteArrayWrapper(u64 Size = 4096, u8 bitsPerIndex = 8) {
-            void* temp = calloc(sizeof(u8), Intr::GetByteSize(Size, bitsPerIndex));
+            u8* temp = tcalloc<u8>(Intr::GetByteSize(Size, bitsPerIndex));
             if (temp == nullptr)
-                throw std::bad_alloc();
-            this->m_data = reinterpret_cast<u8*>(temp);
-            this->Size = Size;
+                DXOB_THROW(std::bad_alloc());
+            this->m_data = temp;
+            this->m_size = Size;
             this->bitsPerIndex = bitsPerIndex;
             this->totalBytesTaken = Intr::GetByteSize(Size, bitsPerIndex);
            // assert(bitsPerIndex % 8 != 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
@@ -66,31 +66,31 @@ namespace Dxob
         }
         ByteArrayWrapper(u8* data, u64 Size, u8 bitsPerIndex) {
 			this->m_data = data;
-			this->Size = Size;
+			this->m_size = Size;
 			this->bitsPerIndex = bitsPerIndex;
             assert(bitsPerIndex % 8 != 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
             m_selectBitmask =  calculateSelectBitmask();
 		}
         ByteArrayWrapper(const ByteArrayWrapper& other)
         {
-            void* temp = malloc(Intr::GetByteSize(Size, bitsPerIndex));
+            u8* temp = tcalloc<u8>(Intr::GetByteSize(other.m_size, other.bitsPerIndex));
             if (temp == nullptr)
-                throw std::bad_alloc();
-            this->m_data = reinterpret_cast<u8*>(temp);
-			this->Size = other.Size;
+                DXOB_THROW(std::bad_alloc());
+            this->m_data = temp;
+			this->m_size = other.m_size;
 			this->bitsPerIndex = other.bitsPerIndex;
 			m_selectBitmask =  calculateSelectBitmask();
             assert(bitsPerIndex % 8 != 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
-            memcpy(m_data, other.m_data, Intr::GetByteSize(other.Size, other.bitsPerIndex));
+            memcpy(m_data, other.m_data, Intr::GetByteSize(other.m_size, other.bitsPerIndex));
 		}
         ByteArrayWrapper(ByteArrayWrapper&& other)
         {
             this->m_data = other.m_data;
-            this->Size = other.Size;
+            this->m_size = other.Size;
             this->bitsPerIndex = other.bitsPerIndex;
             m_selectBitmask = other.m_selectBitmask;
             other.m_data = nullptr;
-            other.Size = 0;
+            other.m_size = 0;
             other.bitsPerIndex = 0;
             assert(bitsPerIndex % 8 != 0 && std::is_signed<valueType>::value); // Non standard bit sizes are not supported for signed types
             other.m_selectBitmask = 0;
@@ -99,11 +99,11 @@ namespace Dxob
         {
 			if (bitsPerIndex == -1)
                 bitsPerIndex = CalculateMinBitsForValue(*std::max_element(data.begin(), data.end()));
-            void* temp = malloc(Intr::GetByteSize(data.size(), bitsPerIndex));
+            u8* temp = tcalloc<u8>(Intr::GetByteSize(data.size(), bitsPerIndex));
             if (temp == nullptr)
-				throw std::bad_alloc();
-            this->m_data = reinterpret_cast<u8*>(temp);
-            this->Size = data.size();
+				DXOB_THROW(std::bad_alloc());
+            this->m_data = temp;
+            this->m_size = data.size();
             this->bitsPerIndex = bitsPerIndex;
             assert(bitsPerIndex % 8 != 0 && std::is_signed<valueType>); // Non standard bit sizes are not supported for signed types
             m_selectBitmask = calculateSelectBitmask();
@@ -146,11 +146,11 @@ namespace Dxob
 
         u8* GetDataRaw() {return m_data;}
         const u8* GetDataRaw() const {return m_data;}
-        std::span<u8> GetData() {return std::span<u8>(m_data, Size);}
-		std::span<const u8> GetData() const {return std::span<const u8>(m_data, Size);} 
+        std::span<u8> GetData() {return std::span<u8>(m_data, m_size);}
+		std::span<const u8> GetData() const {return std::span<const u8>(m_data, m_size);}
         u64 GetTotalBytesTaken() const {return totalBytesTaken;}
            
-        u64 GetSize() const {return Size;} // These get inlined cuz templates
+        u64 GetSize() const {return m_size;} // These get inlined cuz templates
         u8 GetBitsPerIndex() const {return bitsPerIndex;}
         valueType operator[](u64 index) { return NoGuardRead(index); }
         valueType NoGuardRead(u64 index, bool AvoidSlam = false)
@@ -172,12 +172,28 @@ namespace Dxob
         valueType* begin() { return reinterpret_cast<valueType*>(m_data); }
         const valueType* begin() const { return reinterpret_cast<valueType*>(m_data); }
         // End function
-        valueType* end() { return reinterpret_cast<valueType*>(m_data + Intr::GetByteSize(Size, bitsPerIndex)); }
-        const valueType* end() const { return reinterpret_cast<valueType*>(m_data + Intr::GetByteSize(Size, bitsPerIndex)); }
+        valueType* end() { return reinterpret_cast<valueType*>(m_data + Intr::GetByteSize(m_size, bitsPerIndex)); }
+        const valueType* end() const { return reinterpret_cast<valueType*>(m_data + Intr::GetByteSize(m_size, bitsPerIndex)); }
 
 
-
- private:
+        void SetUnderlyingData(u8* data, u64 Size, u8 bps)
+        {
+			free(m_data);
+			this->m_data = data;
+			this->m_size = Size;
+			this->bitsPerIndex = bps;
+            this->totalBytesTaken = Intr::GetByteSize(Size, bps);
+			m_selectBitmask = calculateSelectBitmask();
+		}
+        template <std::integral T>
+        void FromVector(std::span<T> bytes)
+        {
+            if (bytes.size() < m_size)
+                DXOB_RUNTIME("Not enough values in the span");
+            for (u64 i = 0; i < m_size; i++)
+                NoGuardWrite(i, bytes[i]);
+        }
+private:
         constexpr valueType calculateSelectBitmask()
         {
             assert(bitsPerIndex != 0);
@@ -198,7 +214,7 @@ namespace Dxob
 		}
         valueType NoGuardReadNonSigned(u64 index, bool AvoidSlam = false, u64* rawWriteLoc = nullptr)
         {
-            u64 startByte = floor(index * bitsPerIndex / 8); // Get the byte that the index starts in
+            u64 startByte = u64(floor(index * bitsPerIndex / 8)); // Get the byte that the index starts in
             u64 startBit = (index * bitsPerIndex % 8);
             if (startBit == 8)
             {
@@ -223,7 +239,7 @@ namespace Dxob
         void NoGuardWriteNonSigned(u64 index, valueType val)
         {
             u64 ourVal = val;
-            u64 startByte = floor(index * bitsPerIndex / 8); // Get the byte that the index starts in
+            u64 startByte = u64(floor(index * bitsPerIndex / 8)); // Get the byte that the index starts in
             u64 startBit = (index * bitsPerIndex % 8);
             if (startBit == 8)
             {
@@ -283,9 +299,9 @@ namespace Dxob
         
         u64 CalculateCpyCount(u64 index)
         {
-            u64 startByte = floor(index * bitsPerIndex / 8); // Get the byte that the index starts in
+            u64 startByte = u64(floor(index * bitsPerIndex / 8)); // Get the byte that the index starts in
             u64 startBit = index * bitsPerIndex % 8; // Get the bit that the index starts at
-            u64 endByte = floor((index + 1) * bitsPerIndex / 8); // Get the byte that the index ends in
+            u64 endByte = u64(floor((index + 1) * bitsPerIndex / 8)); // Get the byte that the index ends in
             u64 endBit = (index + 1) * bitsPerIndex % 8; // Get the bit that the index ends at
             u64 cpyCount = endByte - startByte;
             if (cpyCount < Intr::GetBytesForBitCount(bitsPerIndex))
@@ -301,7 +317,7 @@ namespace Dxob
         }
     private:
         u8* m_data;
-        u64 Size = 0;
+        u64 m_size = 0;
         u64 m_selectBitmask = 0;
         u64 totalBytesTaken = 0;
         u8 bitsPerIndex = 0;
