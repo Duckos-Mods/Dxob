@@ -158,6 +158,51 @@ bool TestWriterAndConstructor()
 	return true;
 }
 
+bool BulkTest()
+{
+	u64 bitCount = 1;
+	auto calculateMaxValForBits = [](u64 bits) -> u64
+	{
+		u64 mask = 0;
+		for (u64 i = 0; i < bits; i++)
+			mask |= u64(1) << i;
+		
+		return mask;
+	};
+
+	u8 bitRange = 16;
+	for (u64 i = 0; i < bitRange; i++)
+	{
+		FileSettings settings;
+		settings.isGZipCompressed = false;
+#define WIDTHHH 512
+		settings.width = WIDTHHH;
+		settings.height = WIDTHHH;
+		HeightDataAccessor data(std::vector<u16>(WIDTHHH * WIDTHHH), settings);
+		RANDOM_INT_FUNC(0, calculateMaxValForBits(bitCount), u16);
+		for (u64 x = 0; x < WIDTH; x++)
+			for (u64 y = 0; y < WIDTH; y++)
+				data.SetHeightAt(x, y, dis(gen));
+
+		Writer writer;
+		BinaryStream stream;
+		writer.Write(data, stream);
+		Reader reader;
+		stream.seekg(0);
+		auto HDA = reader.Process(stream);
+		auto& rawDataOne = data.GetHeightData();
+		auto& rawDataTwo = HDA.GetHeightData();
+		for (u64 i = 0; i < rawDataOne.size(); i++)
+			if (rawDataOne[i] != rawDataTwo[i])
+			{
+				std::cout << "Error: " << i << " " << rawDataOne[i] << " " << rawDataTwo[i] << std::endl;
+				return false;
+			}
+		bitCount++;
+	}
+
+}
+
 int main() {
 	u64 failed = 0;
 	if (!ReadAndWriteStandardBitSize())
@@ -169,6 +214,8 @@ int main() {
 	if (!ReadAndWriteStandardBitSizeSigned())
 		failed++;
 	if (!TestWriterAndConstructor())
+		failed++;
+	if (!BulkTest())
 		failed++;
 	BenchmarkFindMaximumDelta();
 
